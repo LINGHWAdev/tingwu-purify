@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>听悟净化 · 书签版（免插件备选方案）</title>
+<style>
+  body { font-family: "Microsoft YaHei", sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #222; line-height: 1.8; }
+  .bm-link { display: inline-block; padding: 14px 28px; background: #4f6ef7; color: #fff !important; border-radius: 10px; font-size: 18px; font-weight: bold; text-decoration: none; cursor: grab; user-select: none; }
+  .bm-link:hover { background: #3d5bf5; }
+  code { background: #f0f0f0; padding: 2px 8px; border-radius: 4px; }
+  .tip { background: #fff7e6; border-left: 4px solid #ffa940; padding: 10px 16px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<h1>听悟净化 · 书签版 v1.4</h1>
+
+<p>这是油猴插件的<b>免安装备选方案</b>：不需要 Tampermonkey，任何浏览器都能用。</p>
+
+<h2>使用方法（共 3 步）</h2>
+<ol>
+  <li><b>把下面这个蓝色按钮拖到浏览器的书签栏</b>（书签栏不显示的话按 <code>Ctrl + Shift + B</code> 打开；如果之前拖过旧版，先右键删掉旧书签）<br><br>
+      <a class="bm-link" id="bm" href="#" draggable="true">🌟 听悟净化（按住我，拖到上方书签栏）</a></li>
+  <li>打开通义听悟任意一条<b>转写记录页</b>（就是能看到视频+转写文字的那个页面）</li>
+  <li>点一下书签栏里的「听悟净化」→ AI 垃圾内容消失、视频按真实 16:9 放大、笔记栏自动适配</li>
+</ol>
+
+<div class="tip">
+  <b>和插件版的唯一区别：</b>书签版在每次「新打开或刷新一条转写」后需要再点一下书签；
+  在同一条转写里看课、记笔记的过程中不需要重复点。<br>
+  快捷键 <code>Alt + V</code>：剧场模式（视频最大化/恢复笔记栏），两种版本都支持。
+</div>
+
+<script type="text/plain" id="src">
+(function () {
+  "use strict";
+
+  const VIDEO_VH = 62;
+  const THEATER_VH = 80;
+
+  const CSS = `
+    .editorContent {
+      flex: 0 1 auto !important;
+      width: min(100%, calc(${VIDEO_VH}vh * 16 / 9 + 72px)) !important;
+    }
+    .fileEditorViewport {
+      flex: 1 1 auto !important;
+      min-width: 320px !important;
+      width: auto !important;
+      max-width: none !important;
+    }
+    .StickVPWrapper {
+      width: min(100%, calc(${VIDEO_VH}vh * 16 / 9)) !important;
+      height: auto !important;
+      aspect-ratio: 16 / 9 !important;
+      margin: 0 auto 16px !important;
+    }
+    html.tw-theater .fileEditorViewport { display: none !important; }
+    html.tw-theater .editorContent {
+      width: min(100%, calc(${THEATER_VH}vh * 16 / 9 + 72px)) !important;
+    }
+    html.tw-theater .StickVPWrapper {
+      width: min(100%, calc(${THEATER_VH}vh * 16 / 9)) !important;
+    }
+    :fullscreen .StickVPWrapper, :-webkit-full-screen .StickVPWrapper {
+      width: 100% !important;
+      height: 100% !important;
+      aspect-ratio: auto !important;
+    }
+  `;
+
+  function injectStyle() {
+    if (document.getElementById("tw-style")) return;
+    const st = document.createElement("style");
+    st.id = "tw-style";
+    st.textContent = CSS;
+    document.head.appendChild(st);
+  }
+
+  const head = (el) => (el.innerText || "").replace(/\s+/g, "");
+  function isAiBlock(k) {
+    const t = head(k);
+    return (
+      k.querySelector(".keyWord") !== null ||
+      t.startsWith("全文概要") ||
+      t.startsWith("章节速览") ||
+      t.includes("智能内容由AI模型生成")
+    );
+  }
+  function hideAiBlocks() {
+    const kw = document.querySelector(".keyWord");
+    if (!kw || !kw.parentElement || !kw.parentElement.parentElement) return;
+    for (const k of Array.from(kw.parentElement.parentElement.children)) {
+      if (isAiBlock(k)) k.style.setProperty("display", "none", "important");
+    }
+  }
+
+  function tick() {
+    try { injectStyle(); hideAiBlocks(); } catch (e) {}
+  }
+
+  let timer = null;
+  const schedule = () => {
+    if (timer) return;
+    timer = setTimeout(() => { timer = null; tick(); }, 300);
+  };
+  new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+  setInterval(tick, 2000);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.altKey && (e.key === "v" || e.key === "V")) {
+      e.preventDefault();
+      const on = document.documentElement.classList.toggle("tw-theater");
+      showToast(on ? "剧场模式：视频最大化（Alt+V 返回）" : "正常模式：笔记栏已恢复");
+    }
+  });
+
+  function showToast(msg) {
+    const t = document.createElement("div");
+    t.textContent = msg;
+    Object.assign(t.style, {
+      position: "fixed", top: "16px", left: "50%", transform: "translateX(-50%)",
+      background: "rgba(0,0,0,.75)", color: "#fff", padding: "8px 18px",
+      borderRadius: "8px", fontSize: "13px", zIndex: "99999",
+      transition: "opacity .3s", pointerEvents: "none",
+    });
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = "0"; }, 1600);
+    setTimeout(() => t.remove(), 2000);
+  }
+
+  tick();
+  showToast("听悟净化 v1.4 已执行 ✅ Alt+V 切换剧场模式");
+})();
+</script>
+
+<script>
+  const body = document.getElementById("src").textContent.trim();
+  document.getElementById("bm").href = "javascript:" + encodeURIComponent(body);
+</script>
+
+</body>
+</html>
